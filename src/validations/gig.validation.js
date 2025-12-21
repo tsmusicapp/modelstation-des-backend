@@ -36,7 +36,7 @@ const createGig = {
         ),
         subcategory: Joi.string().allow("").optional(),
 
-        description: Joi.string().required().max(1200),
+        description: Joi.string().required().max(3000),
         packages: Joi.object()
           .keys({
             basic: Joi.object()
@@ -210,7 +210,7 @@ const updateGig = {
         "other"
       ),
       subcategory: Joi.string().allow(""),
-      description: Joi.string().max(1200),
+      description: Joi.string().max(3000),
       packages: Joi.object().keys({
         basic: Joi.object().keys({
           title: Joi.string().max(50),

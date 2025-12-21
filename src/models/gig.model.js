@@ -49,7 +49,7 @@ const gigSchema = mongoose.Schema(
     description: {
       type: String,
       required: true,
-      maxlength: 1200,
+      maxlength: 3000,
     },
     packages: {
       basic: {

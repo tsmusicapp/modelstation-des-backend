@@ -127,7 +127,7 @@ module.exports = router;
  *                 type: string
  *               description:
  *                 type: string
- *                 maxLength: 1200
+ *                 maxLength: 3000
  *               packages:
  *                 type: object
  *               videos:

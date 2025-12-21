@@ -18,7 +18,7 @@ const shareMusicAssetSchema = new mongoose.Schema(
     assetImages: { type: [String], required: true }, // Array of image URLs
     description: { type: String, required: true },
     embeds: { type: String, default: "" }, // YouTube preview or other embeds
-    uploadAsset: { type: String, required: true }, // Main asset file (ZIP)
+    uploadAsset: { type: String, required: false, default: "" }, // Main asset file (ZIP) - made optional
     fileSize: { type: Number, default: 0 },
     tags: { type: [String], required: true, minlength: 4, maxlength: 10 },
     softwareTools: { type: [String], default: [] }, // Optional, 1-10 tools
