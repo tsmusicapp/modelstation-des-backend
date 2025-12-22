@@ -16,7 +16,7 @@ const addSpace = {
     // Removed commented social media fields
     x: Joi.string(),
     facebook: Joi.string(),
-    businessOccupation: Joi.string(),
+    businessOccupation: Joi.any().strip(), // Strip businessOccupation (Supplement field removed)
     location: Joi.string(),
     state: Joi.string(),
     city: Joi.string(),
@@ -43,7 +43,7 @@ const updateSpace = {
     firstName: Joi.string(),
     lastName: Joi.string(),
     creationOccupation: Joi.array().items(Joi.string()),
-    businessOccupation: Joi.string(),
+    businessOccupation: Joi.any().strip(), // Strip businessOccupation (Supplement field removed)
     hiring: Joi.string(),
     // Removed music-related validations
     companyOrStudio: Joi.string(),

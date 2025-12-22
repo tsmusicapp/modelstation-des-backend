@@ -326,7 +326,7 @@ const getAllCreations = async (userId = null) => {
     userSpaceMap[u.createdBy] = {
       userName: `${u.firstName || ''} ${u.lastName || ''}`.trim(),
       profilePicture: u.profilePicture || '',
-      creationOccupation: u.creationOccupation,
+      creationOccupation: u.creationOccupation || [],
       userCountry: (u.address || '').split(',')[0] || ''
     };
   });
@@ -336,7 +336,7 @@ const getAllCreations = async (userId = null) => {
     .filter(creation => !blockedUsers.includes(creation.createdBy))
     .map(creation => {
       const obj = creation.toObject();
-      const userInfo = userSpaceMap[obj.createdBy] || { userName: '', profilePicture: '' };
+      const userInfo = userSpaceMap[obj.createdBy] || { userName: '', profilePicture: '', creationOccupation: [] };
       
       let isLiked = false;
       if (userId) {
@@ -349,7 +349,7 @@ const getAllCreations = async (userId = null) => {
         description: obj.description,
         workImages: obj.workImages || [],
         assetImages: obj.assetImages || [],
-        creationOccupation:obj.creationOccupation || '',
+        creationOccupation: userInfo.creationOccupation || [],
         category: obj.category || '',
         subcategory: obj.subcategory || '',
         tags: obj.tags || [],
