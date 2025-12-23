@@ -21,7 +21,15 @@ const shareAsset = catchAsync(async (req, res) => {
 
 const getAssets = catchAsync(async (req, res) => {
   let result = [];
+  
+  // Check if user is authenticated
+  if (req.user && req.user.id) {
+    // If authenticated, get assets with user context
     result = await shareMusicService.getAllAssets(req.user.id);
+  } else {
+    // If not authenticated, get assets without user context
+    result = await shareMusicService.getAllAssets(null);
+  }
 
   res.send(result);
 });

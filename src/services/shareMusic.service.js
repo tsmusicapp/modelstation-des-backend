@@ -71,7 +71,7 @@ const getAssetsById = async (id, userId) => {
 
 
 
-const getAllAssets = async (userId) => {
+const getAllAssets = async (userId = null) => {
   // Fetch latest 30 assets sorted by creation date descending
   const assets = await ShareMusicAsset.find()
     .limit(30)
