@@ -24,6 +24,10 @@ const shareMusicAssetSchema = new mongoose.Schema(
     softwareTools: { type: [String], default: [] }, // Optional, 1-10 tools
     additionalInformation: { type: String, default: "" }, // AI custom instructions or additional info
     
+    // NEW: Basic Parameters and Classification Parameters as text fields
+    basicParametersText: { type: String, default: "" }, // Basic Parameters textarea content
+    classificationParametersText: { type: String, default: "" }, // Classification Parameters textarea content
+    
     // Keep some fields for backward compatibility
     likes: [
       {

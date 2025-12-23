@@ -103,6 +103,8 @@ const allowedMimes = [
   'application/zip',
   'application/x-zip-compressed',
   'application/x-rar-compressed',
+  'application/vnd.rar', // Alternative RAR MIME type
+  'application/x-rar', // Another RAR MIME type variation
   'application/x-7z-compressed',
 ];
 
@@ -171,9 +173,20 @@ const uploadAssetFile = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: assetMaxSize },
   fileFilter: (req, file, cb) => {
+    // Check if MIME type is in allowed list
     if (allowedMimes.includes(file.mimetype)) {
       cb(null, true);
-    } else {
+    } 
+    // Special handling for generic binary files - check file extension
+    else if (file.mimetype === 'application/octet-stream') {
+      const fileName = file.originalname.toLowerCase();
+      if (fileName.endsWith('.zip') || fileName.endsWith('.rar') || fileName.endsWith('.7z')) {
+        cb(null, true);
+      } else {
+        cb(new Error(`Invalid file type: ${file.mimetype}. Only ZIP, RAR, and 7Z files are allowed.`), false);
+      }
+    }
+    else {
       cb(new Error(`Invalid file type: ${file.mimetype}`), false);
     }
   },
