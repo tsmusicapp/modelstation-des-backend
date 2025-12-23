@@ -7,7 +7,7 @@ const shareMusicController = require('../../controllers/shareMusic.controller');
 const router = express.Router();
 
 router.route('/').post(auth(), shareMusicController.shareAsset);
-router.route('/').get(auth(), shareMusicController.getAssets);
+router.route('/').get(auth.optionalAuth(), shareMusicController.getAssets);
 router.route('/my-assets').get(auth(), shareMusicController.getMyAssets);
 router.route('/:id').get(auth.optionalAuth(), shareMusicController.getAssetsById)
 router.route('/cart/:id').post(auth(), shareMusicController.addToCart)
