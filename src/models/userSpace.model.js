@@ -68,6 +68,9 @@ const userSpaceSchema = mongoose.Schema(
     facebook: {
       type: String,
     },
+    instagram: {
+      type: String,
+    },
     location: {
       type: String,
     },

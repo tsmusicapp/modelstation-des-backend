@@ -16,6 +16,7 @@ const addSpace = {
     // Removed commented social media fields
     x: Joi.string(),
     facebook: Joi.string(),
+    instagram: Joi.string(),
     businessOccupation: Joi.any().strip(), // Strip businessOccupation (Supplement field removed)
     location: Joi.string(),
     state: Joi.string(),
@@ -53,6 +54,7 @@ const updateSpace = {
     // Removed commented social media fields
     x: Joi.string(),
     facebook: Joi.string(),
+    instagram: Joi.string(),
     location: Joi.string(),
     state: Joi.string(),
     city: Joi.string(),
