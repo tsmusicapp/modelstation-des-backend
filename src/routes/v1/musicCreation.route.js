@@ -9,7 +9,7 @@ const router = express.Router();
 
 router.route('/').post(auth(), validate(shareMusicValidation.shareCreation), shareMusicController.shareCreation);
 router.route('/all').get(auth.optionalAuth(), shareMusicController.getAllCreations);
-router.route('/:id').get(auth(), validate(shareMusicValidation.getCreation), shareMusicController.getCreationbyId);
+router.route('/:id').get(auth.optionalAuth(), validate(shareMusicValidation.getCreation), shareMusicController.getCreationbyId);
 router.route('/').get(auth(), validate(shareMusicValidation.getCreation), shareMusicController.getCreation);
 router.route('/:musicId').delete(auth(), require('../../controllers/musicCreation.controller').deleteMusicOrLyric);
 router.route('/update/:musicId').put(auth(), require('../../controllers/musicCreation.controller').updateMusicCreation);

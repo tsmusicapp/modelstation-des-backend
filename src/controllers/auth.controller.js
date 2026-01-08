@@ -1,17 +1,37 @@
 const httpStatus = require('http-status');
 const catchAsync = require('../utils/catchAsync');
 const { authService, userService, tokenService, emailService, userSpaceService } = require('../services');
+const config = require('../config/config');
 
 const register = catchAsync(async (req, res) => {
-  const user = await userService.createUser(req.body);
+  try {
+     const user = await userService.createUser({
+    ...req.body,
+    isEmailVerified: false,
+  });
+
   const tokens = await tokenService.generateAuthTokens(user);
+  const verifyEmailToken = await tokenService.generateVerifyEmailToken(user);
+  await emailService.sendVerificationEmail(
+    user.email,
+    verifyEmailToken
+  );
   res.status(httpStatus.CREATED).send({ user, tokens });
+  } catch (error) {
+    console.log('error: ', error);
+  }
+   
 });
 
 const login = catchAsync(async (req, res) => {
   const { email, password } = req.body;
   // Field email bisa menerima email atau username
   const user = await authService.loginUser(email, password);
+  if (!user.isEmailVerified) {
+    return res.status(403).send({
+      message: 'Please verify your email address before logging in.',
+    });
+  }
   const userSpace = await userSpaceService.getSpace(user.id);
   user.profilePicture = userSpace?.profilePicture || 'https://musicimagevideos.s3.ap-southeast-2.amazonaws.com/music/others/685faf70bfcdd925769fa07a/1751101939604-Screen Shot 2025-06-28 at 16.12.06.png';
   user.name = userSpace ? (userSpace?.firstName + ' ' + userSpace?.lastName) : user.name;
@@ -49,7 +69,7 @@ const sendVerificationEmail = catchAsync(async (req, res) => {
 
 const verifyEmail = catchAsync(async (req, res) => {
   const result = await authService.verifyEmail(req.query.token);
-  res.status(httpStatus.OK).send({ success: result });
+  res.redirect(`${config.frontend.url}/auth/login`)
 });
 
 const googleRegister = catchAsync(async (req, res) => {

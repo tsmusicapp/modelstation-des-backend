@@ -48,7 +48,7 @@ If you did not request any password resets, then ignore this email.`;
  */
 const sendVerificationEmail = async (to, token) => {
   const subject = 'Email Verification';
-  const verificationEmailUrl = `https://insimbo.com/verify-email?token=${token}`;
+  const verificationEmailUrl = `https://api.pallavin.com/v1/auth/verify-email?token=${token}`;
   const text = `Dear user,\nTo verify your email, click on this link: ${verificationEmailUrl}\nIf you did not create an account, then ignore this email.`;
   const html = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 32px; background: #fff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
