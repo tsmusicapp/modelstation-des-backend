@@ -413,7 +413,7 @@ const getCreation = async (createdBy) => {
   return formatted;
 };
 
-const getCreationById = async (id) => {
+const getCreationById = async (id, currentUserId) => {
   const creation = await ShareMusicCreation.findById(id);
   if (!creation) return null;
 
@@ -423,8 +423,6 @@ const getCreationById = async (id) => {
   const profilePicture = userSpace && userSpace.profilePicture || '';
 
   const obj = creation.toObject();
-  console.log("RAW DB DATA - embeds field:", obj.embeds);
-  
   return {
     id: obj._id.toString(),
     title: obj.title,
@@ -459,8 +457,10 @@ const getCreationById = async (id) => {
     // Additional metadata
     createdAt: obj.createdAt,
     createdBy: obj.createdBy,
-    views: obj.views || 0,
-    isLiked: false,
+    views: obj.views?.length || 0,
+    isLiked: obj?.likes?.some(
+      (id) => id.toString() === currentUserId.toString()
+    ) || false,
     isCollected: false,
     contributors: obj.contributors || []
   };

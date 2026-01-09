@@ -137,7 +137,8 @@ const getCreation = catchAsync(async (req, res) => {
 });
 
 const getCreationbyId = catchAsync(async (req, res) => {
-  const result = await shareMusicService.getCreationById(req.params.id);
+  const currentUserId = req.user.id;
+  const result = await shareMusicService.getCreationById(req.params.id, currentUserId);
   res.send(result);
 });
 

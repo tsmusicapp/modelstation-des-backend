@@ -115,10 +115,10 @@ const musicCreationSchema = new mongoose.Schema(
       enum: ['active', 'inactive', 'draft'],
       default: 'active',
     },
-    views: {
-      type: Number,
-      default: 0,
-    },
+    views: [{
+      type: mongoose.SchemaTypes.ObjectId,
+      ref: 'User'
+    }],
     likes: [{
       type: mongoose.SchemaTypes.ObjectId,
       ref: 'User'

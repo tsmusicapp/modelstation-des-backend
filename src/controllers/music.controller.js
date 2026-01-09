@@ -350,6 +350,8 @@ const likeMusic = async (req, res) => {
 
 const incrementView = async (req, res) => {
   const { musicId } = req.params;
+  const currentUserId = req.user.id.toString();
+
   try {
     // Try to find in Music collection first
     let item = await Music.findById(musicId);
@@ -367,12 +369,16 @@ const incrementView = async (req, res) => {
     if (!item) {
       return res.status(404).json({ message: 'Item not found' });
     }
-
-    // Increment view count
-    if (!item.views) {
-      item.views = 0;
+     if (currentUserId == item.createdBy?.toString()) {
+      return res.status(500).json({ message: 'You are already added in view list' });
     }
-    item.views = item.views + 1;
+    // Increment view count
+    item.views = item.views?.some(
+      (id) => id.toString() === currentUserId
+    )
+      ? item.views
+      : [...item.views, currentUserId];
+    
     await item.save();
 
     return res.status(200).json({
