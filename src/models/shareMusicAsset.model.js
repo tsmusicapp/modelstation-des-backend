@@ -51,10 +51,12 @@ const shareMusicAssetSchema = new mongoose.Schema(
       enum: ['draft', 'published', 'archived'],
       default: 'published',
     },
-    views: {
-      type: Number,
-      default: 0,
-    },
+    views: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+      },
+    ],
     comments: [
       {
         userId: {

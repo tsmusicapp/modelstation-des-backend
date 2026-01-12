@@ -4,7 +4,7 @@ const regexFilter = require('../utils/regexFilter');
 const ApiError = require('../utils/ApiError');
 const catchAsync = require('../utils/catchAsync');
 const { shareMusicService, musicService } = require('../services');
-const ShareMusicCreation = require('../models/shareMusicCreation.model');
+const { User, ShareMusicAsset, ShareMusicCreation } = require('../models');
 
 const shareAsset = catchAsync(async (req, res) => {
   const { aiCustomInstructions, ...restBody } = req.body;
@@ -235,19 +235,27 @@ const commentOnCreation = catchAsync(async (req, res) => {
   const { id } = req.params;
   const { comment } = req.body;
   const userId = req.user.id;
-  const userName = req.user.name;
-
-  const creation = await ShareMusicCreation.findById(id);
-  if (!creation) {
-    throw new ApiError(httpStatus.NOT_FOUND, 'Creation not found');
-  }
-
+  const userName = req.user.name;  
   const newComment = {
     userId,
     userName,
     comment,
     createdAt: new Date(),
   };
+
+  const creation = await ShareMusicCreation.findById(id);
+  if (!creation) {
+    const asset = await ShareMusicAsset.findById(id);
+    if(!asset) {
+      throw new ApiError(httpStatus.NOT_FOUND, 'Creation not found');
+    }
+    asset.comments.push(newComment);
+    await asset.save();  
+    res.status(httpStatus.CREATED).send({ 
+    message: 'Comment added successfully', 
+    comment: newComment 
+  });
+  }
 
   // Add comment to the creation
   creation.comments.push(newComment);
@@ -274,7 +282,6 @@ const collectCreation = catchAsync(async (req, res) => {
   }
 
   // Get user to manage collections
-  const { User } = require('../models');
   const user = await User.findById(userId);
   if (!user) {
     throw new ApiError(httpStatus.NOT_FOUND, 'User not found');

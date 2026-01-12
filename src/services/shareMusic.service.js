@@ -1,5 +1,5 @@
 const httpStatus = require('http-status');
-const { ShareMusicAsset, ShareMusicCreation, Cart, Sale, UserSpace } = require('../models');
+const { ShareMusicAsset, ShareMusicCreation, Cart, Sale, UserSpace, User } = require('../models');
 const ApiError = require('../utils/ApiError');
 const { ObjectId } = require('mongodb');
 const mongoose = require('mongoose');
@@ -43,8 +43,17 @@ const updateAsset = async (assetId, body) => {
  * @returns {Promise<User>}
  */
 const getAssets = async (createdBy) => {
-  return ShareMusicAsset.find({ createdBy });
+  const creatorId = new mongoose.Types.ObjectId(createdBy);
+
+  const contributors = await User.find({ _id: creatorId }).lean();
+  const assets = await ShareMusicAsset.find({ createdBy: creatorId }).lean();
+
+  return assets.map(asset => ({
+    ...asset,
+    contributors
+  }));
 };
+
 
 const getAssetsById = async (id, userId) => {
   const asset = await ShareMusicAsset.findById(id);
@@ -125,7 +134,7 @@ const getAssetsById = async (id, userId) => {
     classificationParametersText: obj.classificationParametersText,
     likes: obj.likes,
     status: obj.status,
-    views: obj.views,
+    views: obj.views?.length || 0,
     createdBy: obj.createdBy,
     updatedBy: obj.updatedBy,
     comments: obj.comments,
@@ -462,7 +471,8 @@ const getCreationById = async (id, currentUserId) => {
       (id) => id.toString() === currentUserId.toString()
     ) || false,
     isCollected: false,
-    contributors: obj.contributors || []
+    contributors: obj.contributors || [],
+    hiring: userSpace?.hiring || ""
   };
 };
 

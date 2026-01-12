@@ -1,6 +1,7 @@
 const httpStatus = require('http-status');
 const { Music, LyricsMusic, User, UserSpace } = require('../models');
 const ApiError = require('../utils/ApiError');
+const mongoose = require("mongoose")
 
 /**
  * Create a user
@@ -139,6 +140,7 @@ const getMusicById = async (id, userId = null) => {
     return {
       ...obj,
       id: obj._id.toString(),
+      views: obj?.views?.length || 0,
       profilePicture,
       userName,
       hiring: userSpace?.hiring || '',
@@ -315,9 +317,18 @@ const getMusicById = async (id, userId = null) => {
   return null;
 };
 
+const getMusicByUser = async (createdBy) => {
+  const ShareMusicCreation = require('../models/shareMusicCreation.model');
+  const creatorId = new mongoose.Types.ObjectId(createdBy);
 
+  const contributors = await User.find({ _id: creatorId }).lean();
+  const assets = await ShareMusicCreation.find({ createdBy: creatorId }).lean();
 
-
+  return assets.map(asset => ({
+    ...asset,
+    contributors
+  }));
+};
 
 /**
  * Get music recommendation by music genre
@@ -779,5 +790,6 @@ module.exports = {
   getAllMusic,
   getMyCollections,
   getAllMusicFollowing,
-  getAllContributionsForSong
+  getAllContributionsForSong,
+  getMusicByUser
 };

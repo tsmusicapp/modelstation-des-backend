@@ -805,7 +805,7 @@ const likeMusicOrLyrics = async (req, res) => {
 };
 
 const getMusicUser = catchAsync(async (req, res) => {
-  const music = await musicService.getMyMusic(req.params.userId);
+  const music = await musicService.getMusicByUser(req.params.userId);
   if (!music) {
     throw new ApiError(httpStatus.NOT_FOUND, 'Music not found');
   }
