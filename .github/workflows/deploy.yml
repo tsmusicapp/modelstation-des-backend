@@ -32,11 +32,14 @@ jobs:
             # install dependencies
             npm install
 
-            # stop previous pm2 process if exists (ignore errors)
-            pm2 restart api-pallavin || true
-
-            # start new process
-            pm2 start npm --name api-pallavin -- start
+            # check if pm2 process exists
+            if pm2 describe api-pallavin > /dev/null 2>&1; then
+              echo "PM2 process exists. Restarting..."
+              pm2 restart api-pallavin
+            else
+              echo "PM2 process not found. Starting new process..."
+              pm2 start npm --name api-pallavin -- start
+            fi
 
             # save pm2 state (so it restarts on reboot)
             pm2 save
