@@ -5,6 +5,7 @@ const ApiError = require("../utils/ApiError");
 const catchAsync = require("../utils/catchAsync");
 const { shareMusicService, musicService } = require("../services");
 const { User, ShareMusicAsset, ShareMusicCreation } = require("../models");
+const RatingService = require("../services/rating.service");
 
 const shareAsset = catchAsync(async (req, res) => {
   const { aiCustomInstructions, ...restBody } = req.body;
@@ -92,6 +93,37 @@ const getAssetsById = catchAsync(async (req, res) => {
       return res.send(creation);
     }
     return res.send(music);
+  }
+
+  // Get creator ID from the result
+  const creatorId = result.createdBy?._id || result.createdBy;
+
+  if (creatorId) {
+    // Fetch user ratings using RatingService
+    const userRatings = await RatingService.getUserRatings(creatorId);
+
+    // Inject rating data into the result
+    if (userRatings && userRatings.seller) {
+      if (result.toObject) {
+        // If it's a mongoose document
+        const plainResult = result.toObject();
+        plainResult.orderRating = userRatings.seller.averageRating || 0;
+        plainResult.sellerReviews = userRatings.seller.totalReviews || 0;
+
+        // Add cache-busting headers for security
+        res.set({
+          "Cache-Control": "no-cache, no-store, must-revalidate",
+          Pragma: "no-cache",
+          Expires: "0",
+        });
+
+        return res.send(plainResult);
+      } else {
+        // If it's already a plain object
+        result.orderRating = userRatings.seller.averageRating || 0;
+        result.sellerReviews = userRatings.seller.totalReviews || 0;
+      }
+    }
   }
 
   // Add cache-busting headers for security

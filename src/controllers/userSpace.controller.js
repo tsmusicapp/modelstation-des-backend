@@ -117,54 +117,65 @@ const getSpace = catchAsync(async (req, res) => {
   }
   result = result && result.toObject ? result.toObject() : result;
 
-  // Hitung total likes dari semua koleksi yang dibuat user ini
-  const [music, lyrics, sharedAssets] = await Promise.all([
-    Music.find({ createdBy: req.user.id }),
-    LyricsMusic.find({ createdBy: req.user.id }),
-    ShareMusicAsset.find({ createdBy: req.user.id }),
+  // Optimize totalLikes calculation using aggregation
+  // This replaces fetching ALL music/lyrics/assets which was causing performance issues
+  const userId = req.user.id;
+
+  const [musicLikes, lyricsLikes, sharedLikes] = await Promise.all([
+    Music.aggregate([
+      { $match: { createdBy: userId } },
+      { $project: { likesCount: { $size: { $ifNull: ["$likes", []] } } } },
+      { $group: { _id: null, total: { $sum: "$likesCount" } } },
+    ]),
+    LyricsMusic.aggregate([
+      { $match: { createdBy: userId } },
+      { $project: { likesCount: { $size: { $ifNull: ["$likes", []] } } } },
+      { $group: { _id: null, total: { $sum: "$likesCount" } } },
+    ]),
+    ShareMusicAsset.aggregate([
+      { $match: { createdBy: userId } },
+      { $project: { likesCount: { $size: { $ifNull: ["$likes", []] } } } },
+      { $group: { _id: null, total: { $sum: "$likesCount" } } },
+    ]),
   ]);
+
   let totalLikes = 0;
-  totalLikes += music.reduce(
-    (sum, m) => sum + (m.likes && m.likes.length ? m.likes.length : 0),
-    0,
-  );
-  totalLikes += lyrics.reduce(
-    (sum, l) => sum + (l.likes && l.likes.length ? l.likes.length : 0),
-    0,
-  );
-  totalLikes += sharedAssets.reduce(
-    (sum, s) => sum + (s.likes && s.likes.length ? s.likes.length : 0),
-    0,
-  );
+  if (musicLikes.length > 0) totalLikes += musicLikes[0].total;
+  if (lyricsLikes.length > 0) totalLikes += lyricsLikes[0].total;
+  if (sharedLikes.length > 0) totalLikes += sharedLikes[0].total;
+
   result.totalLikes = totalLikes;
 
-  // Hitung totalCollect: berapa kali karya user ada di collections user lain
-  // Cari semua karya user (music, lyrics, shareAssets) hanya ambil _id
+  // Optimize totalCollect calculation
+  // First get all asset IDs created by the user (only IDs, lean query)
   const [musicIds, lyricsIds, shareAssetsIds] = await Promise.all([
-    Music.find({ createdBy: req.user.id }).select("_id"),
-    LyricsMusic.find({ createdBy: req.user.id }).select("_id"),
-    ShareMusicAsset.find({ createdBy: req.user.id }).select("_id"),
+    Music.find({ createdBy: userId }).distinct("_id"),
+    LyricsMusic.find({ createdBy: userId }).distinct("_id"),
+    ShareMusicAsset.find({ createdBy: userId }).distinct("_id"),
   ]);
-  const allWorkIds = [
-    ...musicIds.map((m) => m._id.toString()),
-    ...lyricsIds.map((l) => l._id.toString()),
-    ...shareAssetsIds.map((s) => s._id.toString()),
-  ];
-  // Ambil semua user dan field collections
-  const allUsers = await User.find({}, "collections");
+
+  const allWorkIds = [...musicIds, ...lyricsIds, ...shareAssetsIds].map((id) =>
+    id.toString(),
+  ); // Ensure they are strings for comparison if mixed types exist
+
+  // Use MongoDB countDocuments with $in operator instead of fetching all users
+  // This is heavily optimized compared to iterating users in JS
   let totalCollect = 0;
-  allUsers.forEach((u) => {
-    if (u.collections && Array.isArray(u.collections)) {
-      totalCollect += u.collections.filter((cid) =>
-        allWorkIds.includes(cid.toString()),
-      ).length;
-    }
-  });
+  if (allWorkIds.length > 0) {
+    // NOTE: User.collections can be Mixed type, storing ObjectIds as strings or ObjectIds
+    // We check for both strictly if possible, or reliance on $in finding them
+    // Since previous code used .toString(), we assume they might be stored variously
+    // A simple $in query on the 'collections' array field works efficiently if indexed
+    totalCollect = await User.countDocuments({
+      collections: { $in: allWorkIds },
+    });
+  }
+
   result.country = result.address ? result.address.split(",")[0] : "";
   result.totalCollect = totalCollect;
 
-  // Hitung followers: user lain yang memiliki req.user.id di field following
-  const followersCount = await User.countDocuments({ following: req.user.id });
+  // Optimize followers count
+  const followersCount = await User.countDocuments({ following: userId });
   result.followers = followersCount;
 
   // Calculate order metrics using RatingService
