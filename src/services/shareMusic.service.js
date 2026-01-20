@@ -668,7 +668,8 @@ const addToCart = async (userId, assetId) => {
 
     let CartData = await Cart.findById(cart._id).populate({
       path: "cartItems.assetId",
-      select: "songName commercialUsePrice musicImage createdBy",
+      select:
+        "songName commercialUsePrice musicImage workImages assetImages createdBy",
       populate: {
         path: "createdBy",
         select: "name _id",
@@ -707,7 +708,7 @@ const getCart = async (userId) => {
     let CartData = await Cart.findById(cart._id).populate({
       path: "cartItems.assetId",
       select:
-        "songName title commercialUsePrice musicImage workImages createdBy",
+        "songName commercialUsePrice musicImage workImages assetImages createdBy",
       populate: {
         path: "createdBy",
         select: "name _id",
