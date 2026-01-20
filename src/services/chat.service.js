@@ -1,60 +1,97 @@
-const { AppliedJobs, Order } = require('../models');
-const { Chat } = require('../models'); // Import the Chat model
-const mongoose = require('mongoose');
+const { AppliedJobs, Order } = require("../models");
+const { Chat } = require("../models"); // Import the Chat model
+const mongoose = require("mongoose");
 
 /**
  * Chat Service: Handles chat-related business logic.
  */
 const ChatService = {
-
   /**
- * Get chat history between two users.
- *
- * @param {string} currentUserId - ID of the logged-in user.
- * @param {string} userId - ID of the other user in the chat.
- * @returns {Promise<Object>} - Chat document containing messages.
- */
+   * Get chat history between two users.
+   *
+   * @param {string} currentUserId - ID of the logged-in user.
+   * @param {string} userId - ID of the other user in the chat.
+   * @returns {Promise<Object>} - Chat document containing messages.
+   */
   async getChatHistory(currentUserId, userId) {
     try {
       // Ensure currentUserId and userId are ObjectId type
-      const currentUserObjId = mongoose.Types.ObjectId.isValid(currentUserId) ? new mongoose.Types.ObjectId(currentUserId) : currentUserId;
-      const userObjId = mongoose.Types.ObjectId.isValid(userId) ? new mongoose.Types.ObjectId(userId) : userId;
-      // Update isRead array: set user who read
-      const chat = await Chat.findOne({ participants: { $all: [currentUserObjId, userObjId] } });
-      if (!chat) {
-        return { message: 'Chat not found.' };
-      }
-      // Update isRead: must have 2 users (sender & receiver), status only for user who reads
-      const userIds = [currentUserObjId.toString(), userObjId.toString()];
-      chat.isRead = chat.isRead.filter(id => userIds.includes(id.toString()));
-      if (!chat.isRead.find(id => id.toString() === currentUserObjId.toString())) {
-        chat.isRead.push(currentUserObjId);
-      }
-      // Mark messages from other user as read
-      chat.messages = chat.messages.map(msg => {
-        if (msg.sender.toString() !== currentUserObjId.toString()) {
-          if (msg.toObject) {
-            msg = msg.toObject();
+      const currentUserObjId = mongoose.Types.ObjectId.isValid(currentUserId)
+        ? new mongoose.Types.ObjectId(currentUserId)
+        : currentUserId;
+      const userObjId = mongoose.Types.ObjectId.isValid(userId)
+        ? new mongoose.Types.ObjectId(userId)
+        : userId;
+
+      let chat;
+      let retries = 3;
+      while (retries > 0) {
+        try {
+          chat = await Chat.findOne({
+            participants: { $all: [currentUserObjId, userObjId] },
+          });
+          if (!chat) {
+            return { message: "Chat not found." };
           }
-          msg.readby = true;
+
+          // Update isRead: must have 2 users (sender & receiver), status only for user who reads
+          const userIds = [currentUserObjId.toString(), userObjId.toString()];
+          chat.isRead = chat.isRead.filter((id) =>
+            userIds.includes(id.toString()),
+          );
+          if (
+            !chat.isRead.find(
+              (id) => id.toString() === currentUserObjId.toString(),
+            )
+          ) {
+            chat.isRead.push(currentUserObjId);
+          }
+
+          // Mark messages from other user as read
+          let hasChanges = false;
+          chat.messages = chat.messages.map((msg) => {
+            if (
+              msg.sender.toString() !== currentUserObjId.toString() &&
+              !msg.readby
+            ) {
+              if (msg.toObject) {
+                msg = msg.toObject();
+              }
+              msg.readby = true;
+              hasChanges = true;
+            }
+            return msg;
+          });
+
+          if (hasChanges || chat.isModified("isRead")) {
+            chat.markModified("messages");
+            await chat.save();
+          }
+
+          break; // Success, exit loop
+        } catch (err) {
+          if (err.name === "VersionError" && retries > 1) {
+            retries--;
+            console.log(
+              `VersionError in getChatHistory, retrying... (${retries} left)`,
+            );
+            continue;
+          }
+          throw err;
         }
-        return msg;
-      });
-      chat.markModified('messages');
-      await chat.save();
+      }
 
       // Fetch orders related to this chat
-      const orders = await Order.find({ chat_id: chat._id })
+      const orders = await Order.find({ chat_id: chat._id });
       if (orders) {
-        return { chat, orders }
+        return { chat, orders };
       }
       return chat;
     } catch (error) {
-      console.error('Error fetching chat history:', error, error?.stack);
-      throw new Error('Unable to fetch chat history.');
+      console.error("Error fetching chat history:", error, error?.stack);
+      throw new Error("Unable to fetch chat history.");
     }
   },
-
 
   // async getChatHistory(currentUserId, userId) {
   //   try {
@@ -78,7 +115,7 @@ const ChatService = {
       const chat = await Chat.findById(chatId);
       return chat;
     } catch (error) {
-      console.error('Error fetching chat by ID:', error);
+      console.error("Error fetching chat by ID:", error);
       throw error;
     }
   },
@@ -92,12 +129,20 @@ const ChatService = {
    * @param {string} message - Message text.
    * @returns {Promise<Object>} - Updated chat document.
    */
-  async saveMessage(senderId, recipientId, message, cardData = null, attachments = []) {
+  async saveMessage(
+    senderId,
+    recipientId,
+    message,
+    cardData = null,
+    attachments = [],
+  ) {
     try {
-
       console.log(recipientId, senderId, "id inside here ");
-      console.log('cardData received in saveMessage:', JSON.stringify(cardData, null, 2));
-      
+      console.log(
+        "cardData received in saveMessage:",
+        JSON.stringify(cardData, null, 2),
+      );
+
       // Convert sender and recipient IDs to ObjectId
       const senderObjectId = new mongoose.Types.ObjectId(senderId);
       const recipientObjectId = new mongoose.Types.ObjectId(recipientId);
@@ -107,13 +152,15 @@ const ChatService = {
       console.log(senderObjectId, recipientObjectId, "id inside here ");
       // Sort participants to ensure consistency
       const sortedParticipants = [senderObjectId, recipientObjectId].sort();
-      console.log('Sorted Participants:', sortedParticipants);
+      console.log("Sorted Participants:", sortedParticipants);
 
       // Attempt to find the chat
-      let chat = await Chat.findOne({ participants: { $all: sortedParticipants } });
+      let chat = await Chat.findOne({
+        participants: { $all: sortedParticipants },
+      });
 
       if (!chat) {
-        console.log('No existing chat found, creating a new one.');
+        console.log("No existing chat found, creating a new one.");
         // If no chat exists, create one
         const newMessage = {
           sender: senderObjectId,
@@ -123,13 +170,16 @@ const ChatService = {
           cardData: cardData || null, // Ensure cardData is stored
           attachments: attachments || [],
         };
-        
-        console.log('Creating new chat with message:', JSON.stringify(newMessage, null, 2));
-        
+
+        console.log(
+          "Creating new chat with message:",
+          JSON.stringify(newMessage, null, 2),
+        );
+
         chat = new Chat({
           participants: sortedParticipants,
           messages: [newMessage],
-          isRead: [senderObjectId] // Sender is immediately considered as read
+          isRead: [senderObjectId], // Sender is immediately considered as read
         });
       } else {
         // If chat exists, add the new message
@@ -141,12 +191,16 @@ const ChatService = {
           cardData: cardData || null, // Ensure cardData is stored
           attachments: attachments || [],
         };
-        
-        console.log('Adding new message:', JSON.stringify(newMessage, null, 2));
+
+        console.log("Adding new message:", JSON.stringify(newMessage, null, 2));
         chat.messages.push(newMessage);
         // Set isRead only contains sender user (who created this message), remove recipient id
-        chat.isRead = chat.isRead.filter(id => id.toString() !== recipientObjectId.toString());
-        if (!chat.isRead.find(id => id.toString() === senderObjectId.toString())) {
+        chat.isRead = chat.isRead.filter(
+          (id) => id.toString() !== recipientObjectId.toString(),
+        );
+        if (
+          !chat.isRead.find((id) => id.toString() === senderObjectId.toString())
+        ) {
           chat.isRead.push(senderObjectId);
         }
         // Logic inquiry: inquiry remains true if sender is same as first message sender
@@ -159,18 +213,20 @@ const ChatService = {
       }
 
       // Save the chat (whether new or updated)
-      chat.markModified('messages'); // Ensure Mongoose detects changes to the messages array
+      chat.markModified("messages"); // Ensure Mongoose detects changes to the messages array
       await chat.save();
-      
-      console.log('Chat saved successfully. Last message:', JSON.stringify(chat.messages[chat.messages.length - 1], null, 2));
+
+      console.log(
+        "Chat saved successfully. Last message:",
+        JSON.stringify(chat.messages[chat.messages.length - 1], null, 2),
+      );
 
       return chat;
     } catch (error) {
-      console.error('Error saving message:', error);
-      throw new Error('Unable to save message.');
+      console.error("Error saving message:", error);
+      throw new Error("Unable to save message.");
     }
   },
-
 
   /**
    * Block a user in a chat.
@@ -183,11 +239,11 @@ const ChatService = {
     try {
       await Chat.updateMany(
         { participants: { $all: [userId, blockedUserId] } },
-        { $addToSet: { blockedBy: userId } } // Add the blocking user to the `blockedBy` array
+        { $addToSet: { blockedBy: userId } }, // Add the blocking user to the `blockedBy` array
       );
     } catch (error) {
-      console.error('Error blocking user:', error);
-      throw new Error('Unable to block user.');
+      console.error("Error blocking user:", error);
+      throw new Error("Unable to block user.");
     }
   },
 
@@ -202,11 +258,11 @@ const ChatService = {
     try {
       await Chat.updateMany(
         { participants: { $all: [userId, reportedUserId] } },
-        { $addToSet: { reportedBy: userId } } // Add the reporting user to the `reportedBy` array
+        { $addToSet: { reportedBy: userId } }, // Add the reporting user to the `reportedBy` array
       );
     } catch (error) {
-      console.error('Error reporting user:', error);
-      throw new Error('Unable to report user.');
+      console.error("Error reporting user:", error);
+      throw new Error("Unable to report user.");
     }
   },
 
@@ -221,7 +277,7 @@ const ChatService = {
     try {
       const chat = await Chat.findById(chatId);
       if (!chat) {
-        throw new Error('Chat not found.');
+        throw new Error("Chat not found.");
       }
 
       chat.messages.forEach((message) => {
@@ -232,31 +288,31 @@ const ChatService = {
 
       await chat.save();
     } catch (error) {
-      console.error('Error marking messages as read:', error);
-      throw new Error('Unable to mark messages as read.');
+      console.error("Error marking messages as read:", error);
+      throw new Error("Unable to mark messages as read.");
     }
   },
 
   async getUsers(role, userId) {
     try {
-      if (role === 'recruiter') {
+      if (role === "recruiter") {
         // Get users who have applied to recruiter
         const users = await AppliedJobs.aggregate([
           {
             $lookup: {
-              from: 'users',
-              localField: 'createdBy',
-              foreignField: '_id',
-              as: 'userDetails',
+              from: "users",
+              localField: "createdBy",
+              foreignField: "_id",
+              as: "userDetails",
             },
           },
-          { $unwind: '$userDetails' },
+          { $unwind: "$userDetails" },
           {
             $project: {
-              id: '$userDetails._id',
-              name: '$userDetails.name',
-              email: '$userDetails.email',
-              avatar: '$userDetails.profilePicture',
+              id: "$userDetails._id",
+              name: "$userDetails.name",
+              email: "$userDetails.email",
+              avatar: "$userDetails.profilePicture",
             },
           },
         ]).exec();
@@ -265,42 +321,53 @@ const ChatService = {
         // Get all users who have chatted with userId, except those deleted by userId
         const chats = await Chat.find({
           participants: mongoose.Types.ObjectId(userId),
-          deletedBy: { $ne: mongoose.Types.ObjectId(userId) }
+          deletedBy: { $ne: mongoose.Types.ObjectId(userId) },
         }).populate([
           {
-            path: 'participants',
-            select: 'name email',
-          }
+            path: "participants",
+            select: "name email",
+          },
         ]);
         // Get other user from each chat
-        const users = await Promise.all(chats.map(async chat => {
-          const otherUser = chat.participants.find(u => u._id.toString() !== userId.toString());
-          const lastMessage = chat.messages && chat.messages.length > 0 ? chat.messages[chat.messages.length - 1] : null;
-          let avatar = null;
-          let fullName = null;
-          if (otherUser) {
-            // Find userSpace based on createdBy = otherUser._id
-            const userSpace = await mongoose.model('UserSpace').findOne({ createdBy: otherUser._id.toString() });
-            if (userSpace) {
-              avatar = userSpace.profilePicture;
-              fullName = userSpace.firstName + ' ' + userSpace.lastName; // Assuming userSpace has firstName and lastName
+        const users = await Promise.all(
+          chats.map(async (chat) => {
+            const otherUser = chat.participants.find(
+              (u) => u._id.toString() !== userId.toString(),
+            );
+            const lastMessage =
+              chat.messages && chat.messages.length > 0
+                ? chat.messages[chat.messages.length - 1]
+                : null;
+            let avatar = null;
+            let fullName = null;
+            if (otherUser) {
+              // Find userSpace based on createdBy = otherUser._id
+              const userSpace = await mongoose
+                .model("UserSpace")
+                .findOne({ createdBy: otherUser._id.toString() });
+              if (userSpace) {
+                avatar = userSpace.profilePicture;
+                fullName = userSpace.firstName + " " + userSpace.lastName; // Assuming userSpace has firstName and lastName
+              }
             }
-          }
-          return {
-            id: otherUser?._id,
-            name: fullName ?? otherUser?.name,
-            inquiry: chat.inquiry || false, // Assuming inquiry is a boolean field in the chat
-            email: otherUser?.email,
-            avatar: avatar ?? 'https://musicimagevideos.s3.ap-southeast-2.amazonaws.com/music/others/685faf70bfcdd925769fa07a/1751101939604-Screen%20Shot%202025-06-28%20at%2016.12.06.png',
-            chatId: chat._id,
-            lastMessage
-          };
-        }));
-        return users.filter(u => u.id);
+            return {
+              id: otherUser?._id,
+              name: fullName ?? otherUser?.name,
+              inquiry: chat.inquiry || false, // Assuming inquiry is a boolean field in the chat
+              email: otherUser?.email,
+              avatar:
+                avatar ??
+                "https://musicimagevideos.s3.ap-southeast-2.amazonaws.com/music/others/685faf70bfcdd925769fa07a/1751101939604-Screen%20Shot%202025-06-28%20at%2016.12.06.png",
+              chatId: chat._id,
+              lastMessage,
+            };
+          }),
+        );
+        return users.filter((u) => u.id);
       }
     } catch (error) {
-      console.error('Error fetching users:', error);
-      throw new Error('Unable to fetch users.');
+      console.error("Error fetching users:", error);
+      throw new Error("Unable to fetch users.");
     }
   },
 
@@ -315,29 +382,31 @@ const ChatService = {
     try {
       // Find all chats that have order request messages with the specific orderId in cardData
       const result = await Chat.updateMany(
-        { 
-          'messages.cardData.orderId': orderId,
-          'messages.cardData.type': 'order_request'
+        {
+          "messages.cardData.orderId": orderId,
+          "messages.cardData.type": "order_request",
         },
-        { 
-          $pull: { 
-            messages: { 
-              'cardData.orderId': orderId,
-              'cardData.type': 'order_request'
-            } 
-          } 
-        }
+        {
+          $pull: {
+            messages: {
+              "cardData.orderId": orderId,
+              "cardData.type": "order_request",
+            },
+          },
+        },
       );
-      
-      console.log(`Deleted ${result.modifiedCount} order request messages for orderId: ${orderId}`);
+
+      console.log(
+        `Deleted ${result.modifiedCount} order request messages for orderId: ${orderId}`,
+      );
       return {
         success: true,
         modifiedCount: result.modifiedCount,
-        message: `Deleted order request messages for orderId: ${orderId}`
+        message: `Deleted order request messages for orderId: ${orderId}`,
       };
     } catch (error) {
-      console.error('Error deleting order request messages by orderId:', error);
-      throw new Error('Unable to delete order request messages by orderId.');
+      console.error("Error deleting order request messages by orderId:", error);
+      throw new Error("Unable to delete order request messages by orderId.");
     }
   },
 
