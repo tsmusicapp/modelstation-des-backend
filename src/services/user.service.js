@@ -1,6 +1,6 @@
-const httpStatus = require('http-status');
-const { User } = require('../models');
-const ApiError = require('../utils/ApiError');
+const httpStatus = require("http-status");
+const { User } = require("../models");
+const ApiError = require("../utils/ApiError");
 
 /**
  * Create a user
@@ -9,9 +9,9 @@ const ApiError = require('../utils/ApiError');
  */
 const createUser = async (userBody) => {
   if (await User.isEmailTaken(userBody.email)) {
-    throw new ApiError(httpStatus.UNPROCESSABLE_ENTITY, 'Email already taken');
+    throw new ApiError(httpStatus.UNPROCESSABLE_ENTITY, "Email already taken");
   }
-  console.log('Creating user:', userBody);
+  console.log("Creating user:", userBody);
   return User.create(userBody);
 };
 
@@ -65,10 +65,10 @@ const getUserByName = async (name) => {
 const updateUserById = async (userId, updateBody) => {
   const user = await getUserById(userId);
   if (!user) {
-    throw new ApiError(httpStatus.NOT_FOUND, 'User not found');
+    throw new ApiError(httpStatus.NOT_FOUND, "User not found");
   }
   if (updateBody.email && (await User.isEmailTaken(updateBody.email, userId))) {
-    throw new ApiError(httpStatus.BAD_REQUEST, 'Email already taken');
+    throw new ApiError(httpStatus.BAD_REQUEST, "Email already taken");
   }
   Object.assign(user, updateBody);
   await user.save();
@@ -83,10 +83,35 @@ const updateUserById = async (userId, updateBody) => {
 const deleteUserById = async (userId) => {
   const user = await getUserById(userId);
   if (!user) {
-    throw new ApiError(httpStatus.NOT_FOUND, 'User not found');
+    throw new ApiError(httpStatus.NOT_FOUND, "User not found");
   }
   await user.remove();
   return user;
+};
+
+/**
+ * Create admin user if not exists
+ * @returns {Promise<void>}
+ */
+const createAdminIfNotExists = async () => {
+  const config = require("../config/config");
+  const adminEmail = config.admin.email;
+  const adminPassword = config.admin.password;
+
+  const adminExists = await User.findOne({ role: "admin" });
+  if (!adminExists) {
+    console.log("No admin user found. Creating default admin...");
+    await createUser({
+      name: "Admin",
+      email: adminEmail,
+      password: adminPassword,
+      role: "admin",
+      isEmailVerified: true,
+    });
+    console.log(`Admin user created: ${adminEmail}`);
+  } else {
+    console.log("Admin user already exists.");
+  }
 };
 
 module.exports = {
@@ -97,4 +122,5 @@ module.exports = {
   getUserByName,
   updateUserById,
   deleteUserById,
+  createAdminIfNotExists,
 };

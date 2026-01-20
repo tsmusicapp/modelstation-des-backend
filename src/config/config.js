@@ -53,6 +53,14 @@ const envVarsSchema = Joi.object()
     GROQ_TEMPERATURE: Joi.number()
       .default(0.8)
       .description("Temperature for Groq response"),
+    // Admin configuration
+    ADMIN_EMAIL: Joi.string()
+      .email()
+      .default("admin@example.com")
+      .description("Admin email"),
+    ADMIN_PASSWORD: Joi.string()
+      .default("password123") // Ensure this meets password requirements
+      .description("Admin password"),
   })
   .unknown();
 
@@ -109,5 +117,9 @@ module.exports = {
     model: envVars.GROQ_MODEL,
     maxTokens: envVars.GROQ_MAX_TOKENS,
     temperature: envVars.GROQ_TEMPERATURE,
+  },
+  admin: {
+    email: envVars.ADMIN_EMAIL,
+    password: envVars.ADMIN_PASSWORD,
   },
 };
