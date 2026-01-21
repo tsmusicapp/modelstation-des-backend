@@ -1,5 +1,5 @@
-const Cart = require('../models/cart.model');
-const Sale = require('../models/sale.model'); // create sale schema if not exists
+const Cart = require("../models/cart.model");
+const Sale = require("../models/sale.model"); // create sale schema if not exists
 
 // Add item to cart
 exports.addToCart = async (req, res) => {
@@ -13,7 +13,7 @@ exports.addToCart = async (req, res) => {
     }
 
     // prevent duplicates
-    if (!cart.cartItems.some(item => item.assetId.toString() === assetId)) {
+    if (!cart.cartItems.some((item) => item.assetId.toString() === assetId)) {
       cart.cartItems.push({ assetId, quantity: 1 });
       await cart.save();
     }
@@ -28,28 +28,30 @@ exports.addToCart = async (req, res) => {
 exports.getCart = async (req, res) => {
   try {
     const userId = req.user.id;
-    const cart = await Cart.findOne({ createdBy: userId })
-      .populate({
-        path: 'cartItems.assetId',
-        populate: {
-          path: 'createdBy',
-          select: 'name email'
-        }
-      });
-    
+    const cart = await Cart.findOne({ createdBy: userId }).populate({
+      path: "cartItems.assetId",
+      populate: {
+        path: "createdBy",
+        select: "name email",
+      },
+    });
+
     // Return cartItems array directly, or empty array if no cart
     const cartItems = cart ? cart.cartItems : [];
-    
+
     // Debug logging
-    console.log('Cart found:', !!cart);
-    console.log('Cart items count:', cartItems.length);
+    console.log("Cart found:", !!cart);
+    console.log("Cart items count:", cartItems.length);
     if (cartItems.length > 0) {
-      console.log('First cart item structure:', JSON.stringify(cartItems[0], null, 2));
+      console.log(
+        "First cart item structure:",
+        JSON.stringify(cartItems[0], null, 2),
+      );
     }
-    
+
     res.status(200).json(cartItems);
   } catch (error) {
-    console.error('Error fetching cart:', error);
+    console.error("Error fetching cart:", error);
     res.status(500).json({ error: error.message });
   }
 };
@@ -63,7 +65,7 @@ exports.removeFromCart = async (req, res) => {
     const cart = await Cart.findOneAndUpdate(
       { createdBy: userId },
       { $pull: { cartItems: { assetId } } },
-      { new: true }
+      { new: true },
     );
 
     res.status(200).json(cart);
@@ -73,22 +75,44 @@ exports.removeFromCart = async (req, res) => {
 };
 
 // Pay for cart
+const Purchase = require("../models/purchase.model");
+
+// Pay for cart
 exports.payCart = async (req, res) => {
   try {
     const userId = req.user.id;
     const { saleData } = req.body;
 
-    // Save sale in DB
+    // Create Purchase record for the buyer
+    const purchase = await Purchase.create({
+      user: userId,
+      music: saleData.assetId,
+      amount: saleData.assetPrice,
+      currency: "USD",
+      paymentMethod: saleData.paymentMethod || "paypal",
+      licenseType: saleData.licenseType || "Standard",
+      status: "completed",
+      metadata: {
+        paymentId: saleData.paymentId,
+        buyerName: saleData.buyer,
+      },
+    });
+
+    // Save sale in DB (for seller analytics/record)
     const sale = await Sale.create({
-      buyer: userId,
+      buyerId: userId, // Ensure buyerId is the user ID, not the name
       ...saleData,
     });
 
-    // Optionally clear user cart
-    await Cart.findOneAndUpdate({ createdBy: userId }, { cartItems: [] });
+    // Remove ONLY the purchased item from the user's cart
+    await Cart.findOneAndUpdate(
+      { createdBy: userId },
+      { $pull: { cartItems: { assetId: saleData.assetId } } },
+    );
 
-    res.status(200).json(sale);
+    res.status(200).json({ sale, purchase });
   } catch (error) {
+    console.error("PayCart Error:", error);
     res.status(500).json({ error: error.message });
   }
 };

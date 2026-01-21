@@ -24,7 +24,7 @@ const purchaseSchema = mongoose.Schema(
     },
     paymentMethod: {
       type: String,
-      enum: ['wallet', 'square', 'stripe', 'free'],
+      enum: ['wallet', 'square', 'stripe', 'free','paypal'],
       required: true,
     },
     squarePaymentId: {
