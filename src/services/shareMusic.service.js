@@ -472,12 +472,20 @@ const getCreationById = async (id, currentUserId) => {
   const profilePicture = (userSpace && userSpace.profilePicture) || "";
 
   let isCollected = false;
+  let isFollowing = false;
   if (currentUserId) {
     const user = await User.findById(currentUserId);
-    if (user && user.collections) {
-      isCollected = user.collections.some(
-        (colId) => colId.toString() === id.toString(),
-      );
+    if (user) {
+      if (user.collections) {
+        isCollected = user.collections.some(
+          (colId) => colId.toString() === id.toString(),
+        );
+      }
+      if (user.following) {
+        isFollowing = user.following.some(
+          (followId) => followId.toString() === creation.createdBy.toString(),
+        );
+      }
     }
   }
 
@@ -527,6 +535,7 @@ const getCreationById = async (id, currentUserId) => {
       : false,
     isCollected,
     isBookmarked: isCollected,
+    isFollowing,
     contributors: obj.contributors || [],
     hiring: userSpace?.hiring || "",
   };
