@@ -78,6 +78,7 @@ const getAssetsById = async (id, userId) => {
   // Check if user has purchased this asset
   let hasPurchased = false;
   let isOwner = false;
+  let isFollowing = false;
 
   if (userId) {
     // Check if user is the owner
@@ -92,6 +93,14 @@ const getAssetsById = async (id, userId) => {
         status: "completed",
       });
       hasPurchased = !!purchase;
+    }
+
+    // Check if user is following the creator
+    const user = await User.findById(userId).select("following");
+    if (user && Array.isArray(user.following)) {
+      isFollowing = user.following.some(
+        (followingId) => followingId.toString() === asset.createdBy.toString(),
+      );
     }
   }
 
@@ -161,7 +170,10 @@ const getAssetsById = async (id, userId) => {
     userName: userName,
     // Purchase status flags
     hasPurchased: hasPurchased,
+    // Purchase status flags
+    hasPurchased: hasPurchased,
     isOwner: isOwner,
+    isFollowing: isFollowing,
   };
 
   // Only add sensitive asset URLs if user has legitimate access AND is making an authenticated download request
@@ -472,11 +484,18 @@ const getCreationById = async (id, currentUserId) => {
   const profilePicture = (userSpace && userSpace.profilePicture) || "";
 
   let isCollected = false;
+  let isFollowing = false;
   if (currentUserId) {
     const user = await User.findById(currentUserId);
     if (user && user.collections) {
       isCollected = user.collections.some(
         (colId) => colId.toString() === id.toString(),
+      );
+    }
+    if (user && user.following) {
+      isFollowing = user.following.some(
+        (followingId) =>
+          followingId.toString() === creation.createdBy.toString(),
       );
     }
   }
@@ -527,6 +546,8 @@ const getCreationById = async (id, currentUserId) => {
       : false,
     isCollected,
     isBookmarked: isCollected,
+    isBookmarked: isCollected,
+    isFollowing: isFollowing,
     contributors: obj.contributors || [],
     hiring: userSpace?.hiring || "",
   };
