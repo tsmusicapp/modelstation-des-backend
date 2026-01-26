@@ -69,7 +69,7 @@ const userSchema = mongoose.Schema(
     },
     noPassword: {
       type: Boolean,
-      default: true,
+      default: false,
     },
     squareCredentials: {
       accessToken: String,
