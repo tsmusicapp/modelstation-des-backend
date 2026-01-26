@@ -71,6 +71,14 @@ const userSchema = mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    resetPasswordOTP: {
+      type: String,
+      private: true,
+    },
+    resetPasswordOTPExpires: {
+      type: Date,
+      private: true,
+    },
     squareCredentials: {
       accessToken: String,
       refreshToken: String,

@@ -52,6 +52,32 @@ If you did not request any password resets, then ignore this email.`;
 };
 
 /**
+ * Send reset password OTP email
+ * @param {string} to
+ * @param {string} otp
+ * @returns {Promise}
+ */
+const sendResetPasswordOTPEmail = async (to, otp) => {
+  const subject = "Reset Password OTP";
+  const text = `Dear user,
+Your OTP to reset your password is: ${otp}
+This OTP is valid for 10 minutes.
+If you did not request a password reset, please ignore this email.`;
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
+      <h2 style="color: #333;">Password Reset OTP</h2>
+      <p style="color: #555;">You requested a password reset. Use the OTP below to proceed:</p>
+      <div style="background-color: #f4f4f4; padding: 15px; border-radius: 5px; text-align: center; margin: 20px 0;">
+        <span style="font-size: 24px; font-weight: bold; letter-spacing: 5px; color: #333;">${otp}</span>
+      </div>
+      <p style="color: #555; font-size: 14px;">This OTP is valid for 10 minutes.</p>
+      <p style="color: #888; font-size: 12px; margin-top: 20px;">If you did not request this, please ignore this email.</p>
+    </div>
+  `;
+  await sendEmail(to, subject, text, html);
+};
+
+/**
  * Send verification email
  * @param {string} to
  * @param {string} token
@@ -79,5 +105,6 @@ const sendVerificationEmail = async (to, token) => {
 module.exports = {
   sendEmail,
   sendResetPasswordEmail,
+  sendResetPasswordOTPEmail,
   sendVerificationEmail,
 };

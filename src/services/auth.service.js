@@ -1,9 +1,10 @@
-const httpStatus = require('http-status');
-const tokenService = require('./token.service');
-const userService = require('./user.service');
-const Token = require('../models/token.model');
-const ApiError = require('../utils/ApiError');
-const { tokenTypes } = require('../config/tokens');
+const httpStatus = require("http-status");
+const tokenService = require("./token.service");
+const userService = require("./user.service");
+const Token = require("../models/token.model");
+const ApiError = require("../utils/ApiError");
+const { tokenTypes } = require("../config/tokens");
+const moment = require("moment");
 
 /**
  * Login with email/username and password
@@ -14,7 +15,7 @@ const { tokenTypes } = require('../config/tokens');
 const loginUserWithEmailAndPassword = async (email, password) => {
   const user = await userService.getUserByEmail(email);
   if (!user || !(await user.isPasswordMatch(password))) {
-    throw new ApiError(httpStatus.BAD_REQUEST, 'Incorrect email or password');
+    throw new ApiError(httpStatus.BAD_REQUEST, "Incorrect email or password");
   }
   return user;
 };
@@ -28,7 +29,7 @@ const loginUserWithEmailAndPassword = async (email, password) => {
 const loginUserWithNameAndPassword = async (name, password) => {
   const user = await userService.getUserByName(name);
   if (!user || !(await user.isPasswordMatch(password))) {
-    throw new ApiError(httpStatus.BAD_REQUEST, 'Incorrect name or password');
+    throw new ApiError(httpStatus.BAD_REQUEST, "Incorrect name or password");
   }
   return user;
 };
@@ -42,10 +43,10 @@ const loginUserWithNameAndPassword = async (name, password) => {
 const loginUser = async (emailOrName, password) => {
   // Try to find user by email or name
   let user = null;
-  
+
   // Check if it's an email (contains @)
-  const isEmail = emailOrName.includes('@');
-  
+  const isEmail = emailOrName.includes("@");
+
   if (isEmail) {
     // Try email first
     user = await userService.getUserByEmail(emailOrName);
@@ -56,11 +57,14 @@ const loginUser = async (emailOrName, password) => {
       user = await userService.getUserByEmail(emailOrName);
     }
   }
-  
+
   if (!user || !(await user.isPasswordMatch(password))) {
-    throw new ApiError(httpStatus.BAD_REQUEST, 'Incorrect email/name or password');
+    throw new ApiError(
+      httpStatus.BAD_REQUEST,
+      "Incorrect email/name or password",
+    );
   }
-  
+
   return user;
 };
 
@@ -70,7 +74,11 @@ const loginUser = async (emailOrName, password) => {
  * @returns {Promise}
  */
 const logout = async (refreshToken) => {
-  const refreshTokenDoc = await Token.findOne({ token: refreshToken, type: tokenTypes.REFRESH, blacklisted: false });
+  const refreshTokenDoc = await Token.findOne({
+    token: refreshToken,
+    type: tokenTypes.REFRESH,
+    blacklisted: false,
+  });
   if (refreshTokenDoc) {
     await refreshTokenDoc.remove();
   }
@@ -85,7 +93,10 @@ const logout = async (refreshToken) => {
  */
 const refreshAuth = async (refreshToken) => {
   try {
-    const refreshTokenDoc = await tokenService.verifyToken(refreshToken, tokenTypes.REFRESH);
+    const refreshTokenDoc = await tokenService.verifyToken(
+      refreshToken,
+      tokenTypes.REFRESH,
+    );
     const user = await userService.getUserById(refreshTokenDoc.user);
     if (!user) {
       throw new Error();
@@ -93,7 +104,7 @@ const refreshAuth = async (refreshToken) => {
     await refreshTokenDoc.remove();
     return tokenService.generateAuthTokens(user);
   } catch (error) {
-    throw new ApiError(httpStatus.UNAUTHORIZED, 'Please login first');
+    throw new ApiError(httpStatus.UNAUTHORIZED, "Please login first");
   }
 };
 
@@ -105,7 +116,10 @@ const refreshAuth = async (refreshToken) => {
  */
 const resetPassword = async (resetPasswordToken, newPassword) => {
   try {
-    const resetPasswordTokenDoc = await tokenService.verifyToken(resetPasswordToken, tokenTypes.RESET_PASSWORD);
+    const resetPasswordTokenDoc = await tokenService.verifyToken(
+      resetPasswordToken,
+      tokenTypes.RESET_PASSWORD,
+    );
     const user = await userService.getUserById(resetPasswordTokenDoc.user);
     if (!user) {
       throw new Error();
@@ -113,7 +127,7 @@ const resetPassword = async (resetPasswordToken, newPassword) => {
     await userService.updateUserById(user.id, { password: newPassword });
     await Token.deleteMany({ user: user.id, type: tokenTypes.RESET_PASSWORD });
   } catch (error) {
-    throw new ApiError(httpStatus.UNAUTHORIZED, 'Password reset failed');
+    throw new ApiError(httpStatus.UNAUTHORIZED, "Password reset failed");
   }
 };
 
@@ -124,7 +138,10 @@ const resetPassword = async (resetPasswordToken, newPassword) => {
  */
 const verifyEmail = async (verifyEmailToken) => {
   try {
-    const verifyEmailTokenDoc = await tokenService.verifyToken(verifyEmailToken, tokenTypes.VERIFY_EMAIL);
+    const verifyEmailTokenDoc = await tokenService.verifyToken(
+      verifyEmailToken,
+      tokenTypes.VERIFY_EMAIL,
+    );
     const user = await userService.getUserById(verifyEmailTokenDoc.user);
     if (!user) {
       throw new Error();
@@ -137,6 +154,56 @@ const verifyEmail = async (verifyEmailToken) => {
   }
 };
 
+/**
+ * Generate forgot password OTP
+ * @param {string} email
+ * @returns {Promise<Object>}
+ */
+const generateForgotPasswordOTP = async (email) => {
+  const user = await userService.getUserByEmail(email);
+  if (!user) {
+    throw new ApiError(httpStatus.NOT_FOUND, "No users found with this email");
+  }
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  const expires = moment().add(10, "minutes");
+
+  user.resetPasswordOTP = otp;
+  user.resetPasswordOTPExpires = expires;
+  await user.save();
+
+  return { otp, user };
+};
+
+/**
+ * Verify OTP and reset password
+ * @param {string} email
+ * @param {string} otp
+ * @param {string} newPassword
+ * @returns {Promise}
+ */
+const verifyOTPAndResetPassword = async (email, otp, newPassword) => {
+  const user = await userService.getUserByEmail(email);
+  if (!user) {
+    throw new ApiError(httpStatus.NOT_FOUND, "User not found");
+  }
+
+  if (
+    !user.resetPasswordOTP ||
+    user.resetPasswordOTP !== otp ||
+    !user.resetPasswordOTPExpires ||
+    moment().isAfter(user.resetPasswordOTPExpires)
+  ) {
+    throw new ApiError(httpStatus.BAD_REQUEST, "Invalid or expired OTP");
+  }
+
+  await userService.updateUserById(user.id, { password: newPassword });
+
+  // Clear OTP fields
+  user.resetPasswordOTP = undefined;
+  user.resetPasswordOTPExpires = undefined;
+  await user.save();
+};
+
 module.exports = {
   loginUserWithEmailAndPassword,
   loginUserWithNameAndPassword,
@@ -145,4 +212,6 @@ module.exports = {
   refreshAuth,
   resetPassword,
   verifyEmail,
+  generateForgotPasswordOTP,
+  verifyOTPAndResetPassword,
 };
