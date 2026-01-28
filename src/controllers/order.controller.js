@@ -563,6 +563,32 @@ const addReviewAndRating = async (req, res) => {
   }
 };
 
+const replyToBuyerReview = async (req, res) => {
+  try {
+    const orderId = req.params.orderId;
+    const { reply } = req.body;
+
+    if (!reply || reply.length < 10 || reply.length > 500) {
+      throw new ApiError(
+        httpStatus.BAD_REQUEST,
+        "Reply must be between 10 and 500 characters",
+      );
+    }
+
+    const updatedOrder = await orderService.submitReviewReply(
+      orderId,
+      reply,
+      req.user._id,
+    );
+
+    res.status(httpStatus.OK).send(updatedOrder);
+  } catch (error) {
+    res
+      .status(error.statusCode || httpStatus.BAD_REQUEST)
+      .send({ message: error.message });
+  }
+};
+
 // Create PayPal Order (Checkout)
 const createPaypalOrder = async (req, res) => {
   try {
@@ -1106,6 +1132,9 @@ const submitDelivery = async (req, res) => {
 };
 
 // Accept a submitted delivery (sets status to 'complete')
+// Accept a submitted delivery (sets status to 'complete')
+const { ratingService } = require("../services");
+
 const acceptDelivery = async (req, res) => {
   try {
     const { orderId } = req.params;
@@ -1170,6 +1199,16 @@ const acceptDelivery = async (req, res) => {
       userId,
       "delivery_accepted",
     );
+
+    console.log("Updated Order:", updatedOrder);
+
+    // Explicitly update user metrics for both parties
+    if (order.createdBy) {
+      await ratingService.updateUserMetrics(order.createdBy);
+    }
+    if (order.recruiterId) {
+      await ratingService.updateUserMetrics(order.recruiterId);
+    }
 
     // Per requirement, do not push activity to chat messages for delivery accepted
     return res.status(httpStatus.OK).send(updatedOrder);
@@ -1576,6 +1615,7 @@ module.exports = {
   declineOrder,
   processOrderPayment,
   addReviewAndRating,
+  replyToBuyerReview,
   getMyOrders,
   getCompletedOrders,
   sendOrderMessage,

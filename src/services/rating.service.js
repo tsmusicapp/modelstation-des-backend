@@ -1,46 +1,55 @@
-const { Gig, Order, User } = require('../models');
-const mongoose = require('mongoose');
+const { Gig, Order, User } = require("../models");
+const mongoose = require("mongoose");
 
 /**
  * Centralized Rating Service
  * Handles all rating calculations and updates
  */
 class RatingService {
-  
   /**
    * Calculate user's seller rating (average of all their gigs)
    */
   static async calculateUserSellerRating(userId) {
     try {
-      const userGigs = await Gig.find({ seller: userId, isActive: true });
-      
-      if (!userGigs.length) {
-        return { averageRating: 0, totalReviews: 0, totalOrders: 0 };
+      console.log(`[RatingService] Calculating seller rating for ${userId}`);
+
+      // Count total completed orders
+      const totalOrders = await Order.countDocuments({
+        createdBy: userId,
+        status: "complete",
+      });
+      console.log(
+        `[RatingService] Total completed orders (seller): ${totalOrders}`,
+      );
+
+      // Calculate average rating and reviews from rated orders
+      const ratedOrders = await Order.find({
+        createdBy: userId,
+        status: "complete",
+        sellerRating: { $exists: true, $gte: 1 },
+      });
+
+      const reviewOrders = await Order.find({
+        createdBy: userId,
+        status: "complete",
+        sellerReview: { $exists: true, $ne: null },
+      });
+      const totalReviews = reviewOrders.length;
+
+      let averageRating = 0;
+      if (ratedOrders.length > 0) {
+        averageRating =
+          ratedOrders.reduce((sum, order) => sum + order.sellerRating, 0) /
+          ratedOrders.length;
       }
 
-      const totalReviews = userGigs.reduce((sum, gig) => sum + (gig.totalReviews || 0), 0);
-      const totalOrders = userGigs.reduce((sum, gig) => sum + (gig.totalOrders || 0), 0);
-      
-      // Calculate weighted average rating
-      let totalRatingPoints = 0;
-      let totalRatingCount = 0;
-      
-      userGigs.forEach(gig => {
-        if (gig.averageRating && gig.totalReviews > 0) {
-          totalRatingPoints += gig.averageRating * gig.totalReviews;
-          totalRatingCount += gig.totalReviews;
-        }
-      });
-      
-      const averageRating = totalRatingCount > 0 ? totalRatingPoints / totalRatingCount : 0;
-      
       return {
         averageRating: Math.round(averageRating * 10) / 10, // Round to 1 decimal
         totalReviews,
-        totalOrders
+        totalOrders,
       };
     } catch (error) {
-      console.error('Error calculating user seller rating:', error);
+      console.error("Error calculating user seller rating:", error);
       return { averageRating: 0, totalReviews: 0, totalOrders: 0 };
     }
   }
@@ -50,25 +59,37 @@ class RatingService {
    */
   static async calculateUserBuyerRating(userId) {
     try {
-      const buyerOrders = await Order.find({ 
-        recruiterId: userId, 
-        status: 'complete',
-        buyerRating: { $exists: true, $gte: 1 }
+      console.log(`[RatingService] Calculating buyer rating for ${userId}`);
+
+      // Count total completed orders
+      const totalOrders = await Order.countDocuments({
+        recruiterId: userId,
+        status: "complete",
       });
-      
-      if (!buyerOrders.length) {
-        return { averageRating: 0, totalOrders: 0 };
+      console.log(
+        `[RatingService] Total completed orders (buyer): ${totalOrders}`,
+      );
+
+      // Calculate average rating from rated orders
+      const ratedOrders = await Order.find({
+        recruiterId: userId,
+        status: "complete",
+        buyerRating: { $exists: true, $gte: 1 },
+      });
+
+      let averageRating = 0;
+      if (ratedOrders.length > 0) {
+        averageRating =
+          ratedOrders.reduce((sum, order) => sum + order.buyerRating, 0) /
+          ratedOrders.length;
       }
 
-      const totalOrders = buyerOrders.length;
-      const averageRating = buyerOrders.reduce((sum, order) => sum + order.buyerRating, 0) / totalOrders;
-      
       return {
         averageRating: Math.round(averageRating * 10) / 10,
-        totalOrders
+        totalOrders,
       };
     } catch (error) {
-      console.error('Error calculating user buyer rating:', error);
+      console.error("Error calculating user buyer rating:", error);
       return { averageRating: 0, totalOrders: 0 };
     }
   }
@@ -83,8 +104,12 @@ class RatingService {
 
       // Calculate average rating from reviews
       if (gig.reviews && gig.reviews.length > 0) {
-        const totalRating = gig.reviews.reduce((sum, review) => sum + review.rating, 0);
-        gig.averageRating = Math.round((totalRating / gig.reviews.length) * 10) / 10;
+        const totalRating = gig.reviews.reduce(
+          (sum, review) => sum + review.rating,
+          0,
+        );
+        gig.averageRating =
+          Math.round((totalRating / gig.reviews.length) * 10) / 10;
         gig.totalReviews = gig.reviews.length;
       } else {
         gig.averageRating = 0;
@@ -94,14 +119,14 @@ class RatingService {
       // Count completed orders for this gig
       const completedOrders = await Order.countDocuments({
         gigId: gigId,
-        status: 'complete'
+        status: "complete",
       });
       gig.totalOrders = completedOrders;
 
       await gig.save();
       return gig;
     } catch (error) {
-      console.error('Error calculating gig metrics:', error);
+      console.error("Error calculating gig metrics:", error);
       return null;
     }
   }
@@ -116,29 +141,34 @@ class RatingService {
 
       // Calculate seller metrics
       const sellerMetrics = await this.calculateUserSellerRating(userId);
-      
-      // Calculate buyer metrics  
+
+      // Calculate buyer metrics
       const buyerMetrics = await this.calculateUserBuyerRating(userId);
 
       // Update user with cached metrics
       const updateData = {
-        'sellerMetrics.averageRating': sellerMetrics.averageRating,
-        'sellerMetrics.totalReviews': sellerMetrics.totalReviews,
-        'sellerMetrics.totalOrders': sellerMetrics.totalOrders,
-        'sellerMetrics.lastUpdated': new Date(),
-        'buyerMetrics.averageRating': buyerMetrics.averageRating,
-        'buyerMetrics.totalOrders': buyerMetrics.totalOrders,
-        'buyerMetrics.lastUpdated': new Date()
+        "sellerMetrics.averageRating": sellerMetrics.averageRating,
+        "sellerMetrics.totalReviews": sellerMetrics.totalReviews,
+        "sellerMetrics.totalOrders": sellerMetrics.totalOrders,
+        "sellerMetrics.lastUpdated": new Date(),
+        "buyerMetrics.averageRating": buyerMetrics.averageRating,
+        "buyerMetrics.totalOrders": buyerMetrics.totalOrders,
+        "buyerMetrics.lastUpdated": new Date(),
       };
 
+      console.log(`[RatingService] Updating metrics for user ${userId}`);
+      console.log(`[RatingService] Calculated Seller Metrics:`, sellerMetrics);
+      console.log(`[RatingService] Calculated Buyer Metrics:`, buyerMetrics);
+
       await User.findByIdAndUpdate(userId, updateData);
-      
+      console.log(`[RatingService] Metrics updated in DB for user ${userId}`);
+
       return {
         seller: sellerMetrics,
-        buyer: buyerMetrics
+        buyer: buyerMetrics,
       };
     } catch (error) {
-      console.error('Error updating user metrics:', error);
+      console.error("Error updating user metrics:", error);
       return null;
     }
   }
@@ -162,7 +192,7 @@ class RatingService {
         sellerMetrics = {
           averageRating: user.sellerMetrics.averageRating,
           totalReviews: user.sellerMetrics.totalReviews,
-          totalOrders: user.sellerMetrics.totalOrders
+          totalOrders: user.sellerMetrics.totalOrders,
         };
       } else {
         sellerMetrics = await this.calculateUserSellerRating(userId);
@@ -171,7 +201,7 @@ class RatingService {
       if (buyerCacheValid && user.buyerMetrics) {
         buyerMetrics = {
           averageRating: user.buyerMetrics.averageRating,
-          totalOrders: user.buyerMetrics.totalOrders
+          totalOrders: user.buyerMetrics.totalOrders,
         };
       } else {
         buyerMetrics = await this.calculateUserBuyerRating(userId);
@@ -184,10 +214,10 @@ class RatingService {
 
       return {
         seller: sellerMetrics,
-        buyer: buyerMetrics
+        buyer: buyerMetrics,
       };
     } catch (error) {
-      console.error('Error getting user ratings:', error);
+      console.error("Error getting user ratings:", error);
       return null;
     }
   }
@@ -198,7 +228,7 @@ class RatingService {
   static async addReviewToGig(gigId, reviewData) {
     try {
       const gig = await Gig.findById(gigId);
-      if (!gig) throw new Error('Gig not found');
+      if (!gig) throw new Error("Gig not found");
 
       // Add review to gig
       gig.reviews.push({
@@ -206,7 +236,7 @@ class RatingService {
         rating: reviewData.rating,
         comment: reviewData.comment,
         order: reviewData.orderId,
-        createdAt: new Date()
+        createdAt: new Date(),
       });
 
       await gig.save();
@@ -219,7 +249,7 @@ class RatingService {
 
       return gig;
     } catch (error) {
-      console.error('Error adding review to gig:', error);
+      console.error("Error adding review to gig:", error);
       throw error;
     }
   }

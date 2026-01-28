@@ -86,6 +86,12 @@ router.post(
   orderController.addReviewAndRating,
 );
 
+router.post(
+  "/:orderId/review-reply",
+  auth("user", "recruiter"),
+  orderController.replyToBuyerReview,
+);
+
 // Send message tied to order and record in activities
 router.post(
   "/:orderId/message",
