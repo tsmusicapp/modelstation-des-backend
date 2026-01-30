@@ -1,8 +1,8 @@
-const express = require('express');
-const auth = require('../../middlewares/auth');
-const validate = require('../../middlewares/validate');
-const reportValidation = require('../../validations/report.validation');
-const reportController = require('../../controllers/report.controller');
+const express = require("express");
+const auth = require("../../middlewares/auth");
+const validate = require("../../middlewares/validate");
+const reportValidation = require("../../validations/report.validation");
+const reportController = require("../../controllers/report.controller");
 
 const router = express.Router();
 
@@ -45,7 +45,18 @@ const router = express.Router();
  *       "404":
  *         description: Blog not found
  */
-router.post('/blog/:blogId', auth(), validate(reportValidation.createBlogReport), reportController.createBlogReport);
+router.post(
+  "/blog/:blogId",
+  auth(),
+  validate(reportValidation.createBlogReport),
+  reportController.createBlogReport,
+);
+router.post(
+  "/comment/:commentId",
+  auth(),
+  validate(reportValidation.createCommentReport),
+  reportController.createCommentReport,
+);
 
 /**
  * @swagger
@@ -71,7 +82,12 @@ router.post('/blog/:blogId', auth(), validate(reportValidation.createBlogReport)
  *       "403":
  *         description: Forbidden
  */
-router.get('/', auth('manageUsers'), validate(reportValidation.getReports), reportController.getReports);
+router.get(
+  "/",
+  auth("manageUsers"),
+  validate(reportValidation.getReports),
+  reportController.getReports,
+);
 
 /**
  * @swagger
@@ -99,6 +115,11 @@ router.get('/', auth('manageUsers'), validate(reportValidation.getReports), repo
  *       "404":
  *         description: Report not found
  */
-router.delete('/', auth('manageUsers'), validate(reportValidation.deleteReport), reportController.deleteReport);
+router.delete(
+  "/",
+  auth("manageUsers"),
+  validate(reportValidation.deleteReport),
+  reportController.deleteReport,
+);
 
 module.exports = router;
